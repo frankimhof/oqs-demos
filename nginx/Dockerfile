@@ -10,7 +10,7 @@ ARG OPENSSL_PATH=/opt/openssl
 ARG NGINX_PATH=/opt/nginx
 
 # defines the QSC signature algorithm used for the certificates:
-ARG SIG_ALG="dilithium3"
+#ARG SIG_ALG="dilithium2"
 
 # define the nginx version to include
 ARG NGINX_VERSION=1.16.1
@@ -24,7 +24,7 @@ FROM alpine as intermediate
 ARG LIBOQS_BUILD_DEFINES
 ARG OPENSSL_PATH
 ARG NGINX_PATH
-ARG SIG_ALG
+#ARG SIG_ALG
 ARG NGINX_VERSION
 ARG MAKE_DEFINES
 
@@ -59,23 +59,23 @@ RUN ./configure --prefix=${NGINX_PATH} \
 
 WORKDIR ${NGINX_PATH}
 
-    # generate CA key and cert
-    # generate server CSR
-    # generate server cert
+# copy all CA files
+ADD cacert ${NGINX_PATH}/cacert
+WORKDIR ${NGINX_PATH}/cacert
 RUN set -x && \
-    mkdir cacert && \
+    ./createAllServerCerts.sh
+# generate server cert for every sig specified (ecdsap256, dilithium2, dilithium3, dilithium4, p256_dilithium2, p256_dilithium3, falcon512, falcon1024, rainbowVcclassic, rainbowIaclassic)
+WORKDIR ${NGINX_PATH}
+RUN set -x && \
     mkdir pki && \
-    ${OPENSSL_PATH}/apps/openssl req -x509 -new -newkey ${SIG_ALG} -keyout CA.key -out cacert/CA.crt -nodes -subj "/CN=oqstest CA" -days 365 -config ${OPENSSL_PATH}/apps/openssl.cnf && \
-    ${OPENSSL_PATH}/apps/openssl req -new -newkey ${SIG_ALG} -keyout pki/server.key -out server.csr -nodes -subj "/CN=oqs-nginx" -config ${OPENSSL_PATH}/apps/openssl.cnf && \
-    ${OPENSSL_PATH}/apps/openssl x509 -req -in server.csr -out pki/server.crt -CA cacert/CA.crt -CAkey CA.key -CAcreateserial -days 365
-
+    mv certs/*srv.* pki/
 ## second stage: Only create minimal image without build tooling and intermediate build results generated above:
 FROM alpine 
 # Take in global args
 ARG LIBOQS_BUILD_DEFINES
 ARG OPENSSL_PATH
 ARG NGINX_PATH
-ARG SIG_ALG
+#ARG SIG_ALG
 
 RUN apk add pcre-dev
 
