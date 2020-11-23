@@ -2,6 +2,8 @@
 
 # First: global build arguments:
 
+# set the name of the server which will be tested by the curl container.
+ARG TESTSERVER_NAME=testserver
 # liboqs build type variant; build non-optimized by default (maximum portability of image):
 ARG LIBOQS_BUILD_DEFINES="-DOQS_USE_CPU_EXTENSIONS=OFF"
 
@@ -63,7 +65,7 @@ WORKDIR ${NGINX_PATH}
 ADD cacert ${NGINX_PATH}/cacert
 WORKDIR ${NGINX_PATH}/cacert
 RUN set -x && \
-    ./createAllServerCerts.sh
+    ./createAllServerCerts.sh ${TESTSERVER_NAME}
 # generate server cert for every sig specified (ecdsap256, dilithium2, dilithium3, dilithium4, p256_dilithium2, p256_dilithium3, falcon512, falcon1024, rainbowVcclassic, rainbowIaclassic)
 WORKDIR ${NGINX_PATH}
 RUN set -x && \
