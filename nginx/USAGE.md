@@ -1,3 +1,7 @@
+# 
+```
+docker run --network nginx-test --rm --name oqs-nginx -p 4433:4433 oqs-nginx-img
+```
 ## Purpose 
 
 This is an [nginx](https://nginx.org) docker image building on the [OQS OpenSSL 1.1.1 fork](https://github.com/open-quantum-safe/openssl), which allows nginx to negotiate quantum-safe keys and use quantum-safe authentication using TLS 1.3.

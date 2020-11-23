@@ -1,5 +1,9 @@
 # Multi-stage build: First the full builder image:
 
+# define the ip adress of the server being tested. this is needed to add the server ip and server name ("testserver") to /etc/hosts.
+ARG TESTSERVER_IP=192.168.0.10
+ARG TESTSERVER_NAME=testserver
+
 # define the Curl version to be baked in
 ARG CURL_VERSION=7.69.1
 
@@ -7,10 +11,10 @@ ARG CURL_VERSION=7.69.1
 ARG INSTALLDIR=/opt/oqssa
 
 # liboqs build defines (https://github.com/open-quantum-safe/liboqs/wiki/Customizing-liboqs)
-ARG LIBOQS_BUILD_DEFINES=
+ARG LIBOQS_BUILD_DEFINES="-DOQS_ENABLE_KEM_BIKE=OFF -DOQS_ENABLE_KEM_FRODOKEM=OFF -DOQS_ENABLE_KEM_SIKE=OFF -DOQS_ENABLE_KEM_SIDH=OFF -DOQS_ENABLE_SIG_PICNIC=OFF -DOQS_ENABLE_KEM_CLASSIC_MCELIECE=ON -DOQS_ENABLE_KEM_HQC=OFF -DOQS_ENABLE_KEM_KYBER=ON -DOQS_ENABLE_KEM_NTRU=ON -DOQS_ENABLE_KEM_SABER=ON -DOQS_ENABLE_SIG_DILITHIUM=ON -DOQS_ENABLE_SIG_FALCON=ON -DOQS_ENABLE_SIG_RAINBOW=ON -DOQS_ENABLE_SIG_SPHINCS=OFF"
 
 # openssl build defines (https://github.com/open-quantum-safe/openssl#build-options)
-ARG OPENSSL_BUILD_DEFINES="-DOQS_DEFAULT_GROUPS=p384_kyber768:X25519:kyber768"
+ARG OPENSSL_BUILD_DEFINES="-DOQS_DEFAULT_GROUPS=X25519:kyber512:kyber768:kyber1024:kyber90s512:kyber90s768:kyber90s1024:lightsaber:saber:firesaber:ntru_hps2048509:ntru_hps2048677:ntru_hps4096821:ntru_hrss701"
 
 # Default root CA signature algorithm; can be set to any listed at https://github.com/open-quantum-safe/openssl#authentication
 ARG SIG_ALG="dilithium2"
@@ -27,6 +31,8 @@ ARG LIBOQS_BUILD_DEFINES
 ARG OPENSSL_BUILD_DEFINES
 ARG SIG_ALG
 ARG MAKE_DEFINES
+ARG TESTSERVER_IP
+ARG TESTSERVER_NAME
 
 LABEL version="2"
 
@@ -71,8 +77,12 @@ ENV OPENSSL_CNF=${INSTALLDIR}/ssl/openssl.cnf
 
 WORKDIR ${INSTALLDIR}/bin
 # generate CA key and cert
-RUN set -x; \
+RUN set -x && \
     ${OPENSSL} req -x509 -new -newkey ${SIG_ALG} -keyout CA.key -out CA.crt -nodes -subj "/CN=oqstest CA" -days 365 -config ${OPENSSL_CNF}
+
+#instead of generating key and cert, copy the already existing 
+#COPY CA.crt ${INSTALLDIR}/bin
+#COPY CA.key ${INSTALLDIR}/bin
 
 # build curl - injecting OQS CA generated above into root store
 WORKDIR /opt/curl-${CURL_VERSION}
@@ -93,7 +103,7 @@ RUN env CPPFLAGS="-I/opt/ossl-src/oqs/include" \
 
 # Download current test.openquantumsafe.org test CA cert
 WORKDIR ${INSTALLDIR}
-RUN wget https://test.openquantumsafe.org/CA.crt && mv CA.crt oqs-testca.pem
+#RUN wget https://test.openquantumsafe.org/CA.crt && mv CA.crt oqs-testca.pem
 
 WORKDIR /
 
@@ -106,6 +116,8 @@ FROM alpine:3.11 as dev
 # Take in all global args
 ARG INSTALLDIR
 ARG SIG_ALG
+ARG TESTSERVER_IP
+ARG TESTSERVER_NAME
 
 # Only retain the ${INSTALLDIR} contents in the final image
 COPY --from=intermediate ${INSTALLDIR} ${INSTALLDIR}
@@ -132,12 +144,20 @@ WORKDIR ${INSTALLDIR}
 
 FROM dev
 ARG INSTALLDIR
+ARG TESTSERVER_IP
+ARG TESTSERVER_NAME
 
 WORKDIR /
+#ADD cacert ${INSTALLDIR}/cacert
+ADD cacert /cacert
+# Add the IP Adress and the name of the server to /etc/hosts. This is necessary because of hostname verification (when using curl).
+#RUN cp /etc/hosts ~/hosts.new
+#RUN sed -i -c -e '$a'"${TESTSERVER_IP} ${TESTSERVER_NAME}" /etc/hosts
 
 # Enable a normal user to create new server keys off set CA
 RUN addgroup -g 1000 -S oqs && adduser --uid 1000 -S oqs -G oqs && chown -R oqs.oqs /opt/test && chmod go+r ${INSTALLDIR}/bin/CA.key && chmod go+w ${INSTALLDIR}/bin/CA.srl
 
 USER oqs
+#ENTRYPOINT ["/bin/sh", "-c", "sed -i -e '$a''${TESTSERVER_IP} ${TESTSERVER_NAME}' /etc/hosts"]
 CMD ["serverstart.sh"]
 STOPSIGNAL SIGTERM
