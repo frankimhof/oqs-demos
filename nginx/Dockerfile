@@ -83,7 +83,7 @@ RUN apk add pcre-dev
 
 # Only retain the ${*_PATH} contents in the final image
 COPY --from=intermediate ${NGINX_PATH} ${NGINX_PATH}
-#COPY --from=intermediate ${OPENSSL_PATH}/apps/openssl ${OPENSSL_PATH}
+COPY --from=intermediate ${OPENSSL_PATH}/apps/openssl ${OPENSSL_PATH}
 COPY nginx-conf/ ${NGINX_PATH}/nginx-conf
 
 WORKDIR ${NGINX_PATH}
